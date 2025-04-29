@@ -1,0 +1,129 @@
+---
+title: "Long_Beach_Animal_Shelter"
+format: pdf
+subtitle: "Tidy Tuesday --- PMAP 8551, Spring 2025"
+author: "Asmin Acharya"
+date: "`r Sys.Date()`"
+---
+
+```{r}
+#| warning: false
+#| message: false
+library(tidyverse)
+library(tidytuesdayR)
+library(scales)
+library(showtext)
+library(ggthemes)
+library(hrbrthemes)
+library(ggrepel)
+library(ggtext)
+library(lubridate)
+```
+
+```{r}
+tuesdata <- tt_load('2025-03-04')
+longbeach <- tuesdata$longbeach
+
+longbeach <- longbeach %>% 
+  mutate(Intake_Date = as.Date(intake_date),
+         Outcome_Date = as.Date(outcome_date),
+         Year = year(Intake_Date))
+```
+
+```{r}
+count_by_species <- longbeach %>% 
+  group_by(animal_type) %>% 
+  summarize(Count = n()) %>% 
+  arrange(desc(Count))
+
+count_by_species
+
+animal_condition <- longbeach %>% 
+  group_by(intake_condition) %>%
+  summarize(Count = n()) %>% 
+  arrange(desc(Count))
+
+animal_condition
+
+animal_outcome <- longbeach %>% 
+  group_by(outcome_type) %>% 
+  summarize(Count = n()) %>% 
+  arrange(desc(Count)) %>% 
+  mutate(proportion = Count/sum(Count),
+         percentage = round(proportion * 100, 1))
+
+animal_outcome
+```
+
+```{r}
+font_add_google("K2D", "K2D")
+showtext_auto()
+
+longbeach$month_year <- floor_date(longbeach$Intake_Date, "month")
+
+longbeach_filtered <- longbeach %>% 
+  filter(animal_type %in% c("cat", "dog", "reptile", "wild", "rabbit", 
+                            "bird"))
+
+animal_labels <- c(
+  "cat" =  "Cats",
+  "dog" = "Dogs",
+  "reptile" = "Reptiles",
+  "wild" = "Wild Animals",
+  "rabbit" = "Rabbits",
+  "bird" = "Birds"
+)
+
+highest_intakes <- longbeach_filtered %>% 
+  count(animal_type, month_year) %>% 
+  group_by(animal_type) %>% 
+  slice_max(n, n=1) %>% 
+  ungroup() %>% 
+  mutate(peak_point = paste("Peak:", n, "intakes\n", 
+                            format(month_year,"%b %Y")))
+
+animal_intake_plot <- ggplot(longbeach_filtered, aes(x = month_year, color = animal_type,
+                                                     fill = animal_type)) + 
+  geom_area(stat = "count", show.legend = FALSE, alpha = 0.5)+
+  geom_line(stat = "count", show.legend = FALSE) +
+  scale_color_brewer(palette = "Dark2")+
+  scale_fill_brewer(palette = "Dark2")+
+  facet_wrap(~animal_type, scales = "free_y",
+             labeller = labeller(animal_type = animal_labels))+
+  guides(fill = "none")+
+  labs(title = "Monthly Animal Intakes Over Time", 
+       x = "Month, Year", 
+       y = "Number of Intakes",
+       caption = "Data: Long Beach Animal Shelter")+
+  geom_label_repel(
+    data = highest_intakes,
+    aes(x = month_year, y = n, label = peak_point),
+    nudge_x = 9,
+    nudge_y = 7,
+    size = 3,
+    family = "K2D",
+    box.padding = 0.5,
+    segment.color = "black",
+    min.segment.length = 0,
+    inherit.aes = FALSE
+  )+
+  theme_bw(base_family = "K2D")+
+  theme(plot.title = element_text(size = 14, face = "bold", 
+                                  margin = margin(b = 12)),
+        axis.title.x = element_text(size = 12, margin = margin(t = 12)),
+        axis.title.y = element_text(size = 12, margin = margin(r = 12)),
+        axis.text = element_text(size = 9),
+        panel.grid.major = element_line(linetype = "dashed"),
+        panel.grid.minor = element_line(linetype = "dashed"),
+        plot.background = element_rect(fill = "beige"),
+        strip.background = element_rect(fill = "steelblue1"),
+        strip.text = element_text(size = 9, face = "bold"))
+
+animal_intake_plot
+```
+```{r}
+ggsave("animal_intake.pdf", plot = animal_intake_plot, height = 6, width = 12,
+       dpi = 300)
+```
+
+
